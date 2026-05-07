@@ -65,10 +65,11 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 700; letter-spacing:
   position: relative;
 }
 
-.room[data-vibe="cold"] { --vibe-bg: #fff8d8; }
-.room[data-vibe="cool"] { --vibe-bg: #eaf3ff; }
-.room[data-vibe="warm"] { --vibe-bg: #fde6dd; }
-.room[data-vibe="hot"]  { --vibe-bg: #fbd0c4; }
+/* Background tracks thermometer state — warm at the start, icy at freeze */
+.room[data-vibe="hot"]  { --vibe-bg: #ffd8cb; }
+.room[data-vibe="warm"] { --vibe-bg: #ffe9dd; }
+.room[data-vibe="cool"] { --vibe-bg: #dde8ff; }
+.room[data-vibe="cold"] { --vibe-bg: #c2ddff; }
 
 /* ---------- Header ---------- */
 
@@ -184,15 +185,17 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 700; letter-spacing:
 
 .thermo-labels span.active { color: var(--c-text); }
 
-.thermo-svg {
+.thermo-img {
+  height: 70px;
+  width: auto;
   flex-shrink: 0;
   image-rendering: pixelated;
-  filter: drop-shadow(1px 1px 0 rgba(29, 13, 68, 0.25));
+  filter: drop-shadow(1px 1px 0 rgba(29, 13, 68, 0.2));
   transition: filter 0.3s ease, transform 0.3s ease;
 }
 
 /* Frosted state when fully cold */
-.thermometer.frosted .thermo-svg {
+.thermometer.frosted .thermo-img {
   filter:
     drop-shadow(0 0 8px rgba(47, 109, 254, 0.7))
     drop-shadow(0 0 14px rgba(194, 226, 255, 0.8));

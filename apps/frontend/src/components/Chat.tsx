@@ -28,49 +28,22 @@ function levelForFlagCount(n: number): VibeLevel {
   return LEVELS_TOP_DOWN[Math.min(n, LEVELS_TOP_DOWN.length - 1)];
 }
 
-// Pixel-art thermometer: inline SVG, mercury height + color vary by level.
-const THERMO_FILL_HEIGHT: Record<VibeLevel, number> = {
-  hot: 24,
-  warm: 16,
-  cool: 8,
-  cold: 0,
-};
-const THERMO_FILL_COLOR: Record<VibeLevel, string> = {
-  hot: "#FE3838",
-  warm: "#FE7B30",
-  cool: "#7CB7E8",
-  cold: "#3D6CC8",
+// Pixel-art thermometer: maps vibe level to a designer-supplied SVG asset.
+const THERMO_ASSET: Record<VibeLevel, string> = {
+  hot: "/thermo-hot.svg",
+  warm: "/thermo-medium.svg",
+  cool: "/thermo-low.svg",
+  cold: "/thermo-ice.svg",
 };
 
 function PixelThermometer({ level }: { level: VibeLevel }) {
-  const fillH = THERMO_FILL_HEIGHT[level];
-  const fillColor = THERMO_FILL_COLOR[level];
   return (
-    <svg
-      viewBox="0 0 14 40"
-      width="28"
-      height="80"
-      shapeRendering="crispEdges"
-      className="thermo-svg"
+    <img
+      src={THERMO_ASSET[level]}
+      alt=""
+      className="thermo-img"
       aria-hidden
-    >
-      {/* Tube + bulb outline (chunky pixel) */}
-      <path
-        d="M5 1 H9 V27 H11 V29 H13 V35 H11 V37 H9 V39 H5 V37 H3 V35 H1 V29 H3 V27 H5 Z"
-        fill="#ffffff"
-        stroke="#1d0d44"
-        strokeWidth="1"
-      />
-      {/* Mercury — bulb always full */}
-      <path
-        d="M5 28 H9 V29 H11 V35 H9 V37 H5 V35 H3 V29 H5 Z"
-        fill={fillColor}
-      />
-      {/* Mercury — tube portion (height varies) */}
-      {fillH > 0 && (
-        <rect x="5" y={27 - fillH} width="4" height={fillH} fill={fillColor} />
-      )}
-    </svg>
+    />
   );
 }
 
