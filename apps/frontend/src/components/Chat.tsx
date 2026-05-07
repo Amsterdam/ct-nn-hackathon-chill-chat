@@ -293,7 +293,11 @@ export default function Chat() {
             !!chat.target && chat.target !== "geen" && m.author === chat.target;
           const sideClass = isTarget ? "right" : "left";
           const initial = m.author[0]?.toUpperCase() ?? "?";
-          const dec = STAGE_DECORATION[m.stage];
+          // Decorate roughly every 3rd non-neutral message so the chat doesn't drown in 🔥/💀
+          const dec =
+            m.stage !== "neutral" && i % 3 === 0
+              ? STAGE_DECORATION[m.stage]
+              : "";
           return (
             <div key={i} className={`msg-row ${sideClass}`}>
               <div
@@ -353,7 +357,6 @@ export default function Chat() {
           >
             ×
           </button>
-          <div className="med-icon">🐤</div>
           <div className="med-content">
             <div className="med-title">{mediation.title}</div>
             <p className="med-body">{mediation.body}</p>
