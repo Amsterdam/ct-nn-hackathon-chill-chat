@@ -3,7 +3,9 @@ import {
   postFreeze,
   postGenerateChat,
   postMediation,
+  postReport,
   type FreezeContent,
+  type FreezeEvent,
   type GeneratedChat,
   type Mediation,
   type Mode,
@@ -12,21 +14,64 @@ import {
 
 const FREEZE_THRESHOLD = 3;
 const FREEZE_DURATION_S = 20;
+const STARTING_LIVES = 3;
 
 const PERSONA_COLORS = ["#A079FF", "#DBF4A7", "#E7ADCA", "#FDD08E", "#C2E2FF", "#59E796"];
 const TARGET_COLOR = "#FE592F";
 
+// Vibe levels: HOT (full thermometer) → WARM → COOL → COLD (empty / ice)
 type VibeLevel = "hot" | "warm" | "cool" | "cold";
+const LEVELS_TOP_DOWN: VibeLevel[] = ["hot", "warm", "cool", "cold"];
 
-function vibeFor(chat: GeneratedChat | null): { temp: number; level: VibeLevel } {
-  if (!chat || chat.messages.length === 0) return { temp: 30, level: "cool" };
-  const total = chat.messages.length;
-  const mocking = chat.messages.filter((m) => m.stage === "mocking").length;
-  const teasing = chat.messages.filter((m) => m.stage === "teasing").length;
-  const temp = Math.min(99, Math.round((teasing / total) * 35 + (mocking / total) * 95));
-  const level: VibeLevel =
-    temp >= 70 ? "hot" : temp >= 45 ? "warm" : temp >= 20 ? "cool" : "cold";
-  return { temp, level };
+function levelForFlagCount(n: number): VibeLevel {
+  // n=0 → hot, n=1 → warm, n=2 → cool, n=3 → cold (and freeze)
+  return LEVELS_TOP_DOWN[Math.min(n, LEVELS_TOP_DOWN.length - 1)];
+}
+
+// Pixel-art thermometer: inline SVG, mercury height + color vary by level.
+const THERMO_FILL_HEIGHT: Record<VibeLevel, number> = {
+  hot: 24,
+  warm: 16,
+  cool: 8,
+  cold: 0,
+};
+const THERMO_FILL_COLOR: Record<VibeLevel, string> = {
+  hot: "#FE3838",
+  warm: "#FE7B30",
+  cool: "#7CB7E8",
+  cold: "#3D6CC8",
+};
+
+function PixelThermometer({ level }: { level: VibeLevel }) {
+  const fillH = THERMO_FILL_HEIGHT[level];
+  const fillColor = THERMO_FILL_COLOR[level];
+  return (
+    <svg
+      viewBox="0 0 14 40"
+      width="28"
+      height="80"
+      shapeRendering="crispEdges"
+      className="thermo-svg"
+      aria-hidden
+    >
+      {/* Tube + bulb outline (chunky pixel) */}
+      <path
+        d="M5 1 H9 V27 H11 V29 H13 V35 H11 V37 H9 V39 H5 V37 H3 V35 H1 V29 H3 V27 H5 Z"
+        fill="#ffffff"
+        stroke="#1d0d44"
+        strokeWidth="1"
+      />
+      {/* Mercury — bulb always full */}
+      <path
+        d="M5 28 H9 V29 H11 V35 H9 V37 H5 V35 H3 V29 H5 Z"
+        fill={fillColor}
+      />
+      {/* Mercury — tube portion (height varies) */}
+      {fillH > 0 && (
+        <rect x="5" y={27 - fillH} width="4" height={fillH} fill={fillColor} />
+      )}
+    </svg>
+  );
 }
 
 function colorFor(name: string, isTarget: boolean): string {
@@ -37,11 +82,17 @@ function colorFor(name: string, isTarget: boolean): string {
 }
 
 function fakeTime(i: number): string {
-  // pretend the chat happened starting at 14:02, ~30s apart
   const totalSec = 14 * 60 + 2 + i * 0.5;
   const h = Math.floor(totalSec / 60) % 24;
   const m = Math.floor(totalSec % 60);
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+}
+
+function pickRandomBystander(chat: GeneratedChat): string {
+  const all = Array.from(new Set(chat.messages.map((m) => m.author)));
+  const bystanders = all.filter((a) => a !== chat.target);
+  const pool = bystanders.length > 0 ? bystanders : all;
+  return pool[Math.floor(Math.random() * pool.length)] ?? "Iemand";
 }
 
 const STAGE_DECORATION: Record<Stage, string> = {
@@ -59,26 +110,60 @@ export default function Chat() {
   const [mode, setMode] = useState<Mode>("bullying");
 
   const [flagCount, setFlagCount] = useState(0);
+  const [lives, setLives] = useState(STARTING_LIVES);
+  const [freezeEvents, setFreezeEvents] = useState<FreezeEvent[]>([]);
+  const [gameOver, setGameOver] = useState(false);
+
   const [mediation, setMediation] = useState<Mediation | null>(null);
   const [freeze, setFreeze] = useState<FreezeContent | null>(null);
   const [freezeRemaining, setFreezeRemaining] = useState(0);
   const [glowing, setGlowing] = useState(false);
 
+  const level: VibeLevel = freeze ? "cold" : levelForFlagCount(flagCount);
+
+  // Freeze countdown + auto-thaw OR game-over transition
   useEffect(() => {
     if (!freeze) return;
     if (freezeRemaining <= 0) {
-      setFreeze(null);
-      setFlagCount(0);
+      if (lives <= 0) {
+        // Save report and switch to game-over
+        if (chat) {
+          postReport(
+            chat.messages.map(({ author, text }) => ({ author, text })),
+            chat.target ?? null,
+            freezeEvents,
+          )
+            .then((r) => {
+            const stored = {
+              ...r,
+              generated_at: new Date().toISOString(),
+              target: chat?.target ?? null,
+              freeze_count: freezeEvents.length,
+            };
+            localStorage.setItem("chill-report", JSON.stringify(stored));
+          })
+            .catch((e) => setError(String(e)));
+        }
+        setFreeze(null);
+        setGameOver(true);
+      } else {
+        // Normal thaw — back to HOT
+        setFreeze(null);
+        setFlagCount(0);
+      }
       return;
     }
     const t = setTimeout(() => setFreezeRemaining((r) => r - 1), 1000);
     return () => clearTimeout(t);
-  }, [freeze, freezeRemaining]);
+  }, [freeze, freezeRemaining, lives, chat, freezeEvents]);
 
   async function loadChat() {
     setLoading(true);
     setError(null);
     setFlagCount(0);
+    setLives(STARTING_LIVES);
+    setFreezeEvents([]);
+    setGameOver(false);
     setMediation(null);
     setFreeze(null);
     try {
@@ -91,9 +176,10 @@ export default function Chat() {
   }
 
   async function handleFlag() {
-    if (!chat || freeze) return;
+    if (!chat || freeze || gameOver) return;
     setGlowing(true);
     setTimeout(() => setGlowing(false), 700);
+
     const next = flagCount + 1;
     setFlagCount(next);
 
@@ -102,6 +188,12 @@ export default function Chat() {
     try {
       if (next >= FREEZE_THRESHOLD) {
         const data = await postFreeze(messages);
+        const presser = pickRandomBystander(chat);
+        setFreezeEvents((events) => [
+          ...events,
+          { by: presser, at_message_count: chat.messages.length },
+        ]);
+        setLives((l) => l - 1);
         setFreeze(data);
         setFreezeRemaining(FREEZE_DURATION_S);
         setMediation(null);
@@ -114,12 +206,34 @@ export default function Chat() {
   }
 
   function thawNow() {
-    setFreeze(null);
-    setFlagCount(0);
-    setFreezeRemaining(0);
+    if (lives <= 0) {
+      if (chat) {
+        postReport(
+          chat.messages.map(({ author, text }) => ({ author, text })),
+          chat.target ?? null,
+          freezeEvents,
+        )
+          .then((r) => {
+            const stored = {
+              ...r,
+              generated_at: new Date().toISOString(),
+              target: chat?.target ?? null,
+              freeze_count: freezeEvents.length,
+            };
+            localStorage.setItem("chill-report", JSON.stringify(stored));
+          })
+          .catch((e) => setError(String(e)));
+      }
+      setFreeze(null);
+      setGameOver(true);
+    } else {
+      setFreeze(null);
+      setFlagCount(0);
+      setFreezeRemaining(0);
+    }
   }
 
-  const { temp, level } = vibeFor(chat);
+  const isFrozen = !!freeze;
 
   return (
     <div className="room" data-vibe={level}>
@@ -132,26 +246,31 @@ export default function Chat() {
           <div>
             <div className="room-eyebrow">GROEPSCHAT</div>
             <div className="room-name">vibe kamer</div>
-            <div className="room-sub">5 online · {temp}° vibe</div>
+            <div className="room-sub">5 online · {level}-vibe</div>
           </div>
         </div>
 
         <div className="room-stats">
           <div className="hearts" aria-label="lives">
-            <span>❤</span>
-            <span>❤</span>
-            <span>❤</span>
+            {[0, 1, 2].map((i) => (
+              <img
+                key={i}
+                src="/heart.svg"
+                alt=""
+                className={i < lives ? "" : "dead"}
+              />
+            ))}
           </div>
-          <div className="temp-meter">
-            <div className="temp-labels">
-              <span className={level === "hot" ? "active" : ""}>HOT</span>
-              <span className={level === "warm" ? "active" : ""}>WARM</span>
-              <span className={level === "cool" ? "active" : ""}>COOL</span>
-              <span className={level === "cold" ? "active" : ""}>COLD</span>
+
+          <div className={`thermometer ${level === "cold" ? "frosted" : ""}`}>
+            <div className="thermo-labels">
+              {LEVELS_TOP_DOWN.map((l) => (
+                <span key={l} className={l === level ? "active" : ""}>
+                  {l.toUpperCase()}
+                </span>
+              ))}
             </div>
-            <div className="temp-bar">
-              <div className="temp-marker" style={{ bottom: `${temp}%` }} />
-            </div>
+            <PixelThermometer level={level} />
           </div>
         </div>
       </header>
@@ -197,7 +316,8 @@ export default function Chat() {
         {chat?.messages.map((m, i) => {
           const prev = chat.messages[i - 1];
           const showHead = !prev || prev.author !== m.author;
-          const isTarget = !!chat.target && chat.target !== "geen" && m.author === chat.target;
+          const isTarget =
+            !!chat.target && chat.target !== "geen" && m.author === chat.target;
           const sideClass = isTarget ? "right" : "left";
           const initial = m.author[0]?.toUpperCase() ?? "?";
           const dec = STAGE_DECORATION[m.stage];
@@ -228,21 +348,6 @@ export default function Chat() {
           );
         })}
 
-        {mediation && (
-          <div className="med-popup">
-            <button className="med-close" onClick={() => setMediation(null)} aria-label="sluit">
-              ×
-            </button>
-            <div className="med-icon">🐤</div>
-            <div className="med-content">
-              <div className="med-title">{mediation.title}</div>
-              <p className="med-body">{mediation.body}</p>
-              <p className="med-tip">
-                <strong>tip:</strong> {mediation.suggestion}
-              </p>
-            </div>
-          </div>
-        )}
       </main>
 
       <footer className="room-footer">
@@ -258,13 +363,33 @@ export default function Chat() {
         <button
           className={`snowflake-btn ${glowing ? "glowing" : ""}`}
           onClick={handleFlag}
-          disabled={!chat || !!freeze}
+          disabled={!chat || isFrozen || gameOver || !!mediation}
           title="Bevries de vibe"
         >
           <span aria-hidden>❄</span>
           {flagCount > 0 && <span className="flag-count">{flagCount}</span>}
         </button>
       </footer>
+
+      {mediation && !isFrozen && !gameOver && (
+        <div className="med-popup">
+          <button
+            className="med-close"
+            onClick={() => setMediation(null)}
+            aria-label="sluit"
+          >
+            ×
+          </button>
+          <div className="med-icon">🐤</div>
+          <div className="med-content">
+            <div className="med-title">{mediation.title}</div>
+            <p className="med-body">{mediation.body}</p>
+            <p className="med-tip">
+              <strong>tip:</strong> {mediation.suggestion}
+            </p>
+          </div>
+        </div>
+      )}
 
       {freeze && (
         <div className="freeze-overlay">
@@ -280,6 +405,22 @@ export default function Chat() {
             <button className="thaw-btn" onClick={thawNow}>
               ONTDOOI NU
             </button>
+          </div>
+        </div>
+      )}
+
+      {gameOver && (
+        <div className="freeze-overlay gameover">
+          <div className="freeze-card">
+            <div className="freeze-icons">💔</div>
+            <h2 className="freeze-title">harten op</h2>
+            <p className="freeze-summary">
+              De groep heeft drie keer moeten chillen. Het rapport voor de
+              leerkracht is opgeslagen.
+            </p>
+            <a className="thaw-btn" href="/report">
+              BEKIJK RAPPORT
+            </a>
           </div>
         </div>
       )}

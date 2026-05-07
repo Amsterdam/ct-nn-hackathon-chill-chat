@@ -27,3 +27,23 @@ export const postMediation = (messages: ChatMessage[], flagCount: number) =>
 
 export const postFreeze = (messages: ChatMessage[]) =>
   post<FreezeContent>("/api/freeze", { messages });
+
+export type FreezeEvent = { by: string; at_message_count: number };
+export type Report = {
+  summary: string;
+  key_messages: ChatMessage[];
+  freeze_summary: string;
+  talking_points: string[];
+};
+
+export type StoredReport = Report & {
+  generated_at: string; // ISO datetime
+  target: string | null;
+  freeze_count: number;
+};
+
+export const postReport = (
+  messages: ChatMessage[],
+  target: string | null,
+  freezeEvents: FreezeEvent[],
+) => post<Report>("/api/report", { messages, target, freeze_events: freezeEvents });

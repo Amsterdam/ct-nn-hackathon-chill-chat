@@ -17,6 +17,8 @@ from src.prompts import (
     GENERATE_CHAT_USER_TEMPLATE,
     MEDIATION_SYSTEM,
     MEDIATION_USER_TEMPLATE,
+    REPORT_SYSTEM,
+    REPORT_USER_TEMPLATE,
 )
 
 load_dotenv()
@@ -73,6 +75,24 @@ class GenerateChatResponse(BaseModel):
     messages: list[GeneratedMessage]
 
 
+class FreezeEvent(BaseModel):
+    by: str
+    at_message_count: int
+
+
+class ReportRequest(BaseModel):
+    messages: list[ChatMessage]
+    target: str | None = None
+    freeze_events: list[FreezeEvent]
+
+
+class ReportResponse(BaseModel):
+    summary: str
+    key_messages: list[ChatMessage]
+    freeze_summary: str
+    talking_points: list[str]
+
+
 def _format_messages(messages: list[ChatMessage]) -> str:
     return "\n".join(f"{m.author}: {m.text}" for m in messages)
 
@@ -108,6 +128,27 @@ def freeze(req: FreezeRequest):
     raw = generate(FREEZE_SYSTEM, user, max_tokens=400, force_json=True)
     try:
         return FreezeResponse(**_parse_json(raw))
+    except Exception as e:
+        raise HTTPException(500, f"LLM returned malformed response: {e}\nraw: {raw}")
+
+
+@app.post("/api/report", response_model=ReportResponse)
+def report(req: ReportRequest):
+    if not req.freeze_events:
+        freeze_events_str = "(geen bevries-momenten)"
+    else:
+        freeze_events_str = "\n".join(
+            f"- {ev.by} drukte na bericht #{ev.at_message_count}"
+            for ev in req.freeze_events
+        )
+    user = REPORT_USER_TEMPLATE.format(
+        messages=_format_messages(req.messages),
+        target=req.target or "geen",
+        freeze_events_str=freeze_events_str,
+    )
+    raw = generate(REPORT_SYSTEM, user, max_tokens=900, force_json=True)
+    try:
+        return ReportResponse(**_parse_json(raw))
     except Exception as e:
         raise HTTPException(500, f"LLM returned malformed response: {e}\nraw: {raw}")
 
