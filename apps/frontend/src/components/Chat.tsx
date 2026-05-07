@@ -47,6 +47,14 @@ function PixelThermometer({ level }: { level: VibeLevel }) {
   );
 }
 
+// Mood-coded eye blob centered above the chat — shifts with vibe level.
+const EYES_ASSET: Record<VibeLevel, string> = {
+  hot: "/eyes-happy.svg",
+  warm: "/eyes-medium.svg",
+  cool: "/eyes-low.svg",
+  cold: "/eyes-ice.svg",
+};
+
 function colorFor(name: string, isTarget: boolean): string {
   if (isTarget) return TARGET_COLOR;
   let h = 0;
@@ -211,16 +219,11 @@ export default function Chat() {
   return (
     <div className="room" data-vibe={level}>
       <header className="room-header">
-        <div className="room-id">
-          <div className="room-avatar">
-            <div className="eye" />
-            <div className="eye" />
-          </div>
-          <div>
-            <div className="room-eyebrow">GROEPSCHAT</div>
-            <div className="room-name">vibe kamer</div>
-            <div className="room-sub">5 online · {level}-vibe</div>
-          </div>
+        <div className="room-title-line">
+          <button className="back-btn" aria-label="terug" disabled>
+            ‹
+          </button>
+          <div className="room-title">Groepschat</div>
         </div>
 
         <div className="room-stats">
@@ -236,19 +239,20 @@ export default function Chat() {
           </div>
 
           <div className={`thermometer ${level === "cold" ? "frosted" : ""}`}>
-            <div className="thermo-labels">
-              {LEVELS_TOP_DOWN.map((l) => (
-                <span key={l} className={l === level ? "active" : ""}>
-                  {l.toUpperCase()}
-                </span>
-              ))}
-            </div>
             <PixelThermometer level={level} />
           </div>
         </div>
       </header>
 
+      {chat && (
+        <div className="eye-banner" data-vibe={level}>
+          <img src={EYES_ASSET[level]} alt="" />
+        </div>
+      )}
+
       <main className="room-body">
+        {chat && <div className="day-label">Vandaag</div>}
+
         {!chat && !loading && (
           <div className="empty-state">
             <h1>Chill</h1>
@@ -328,25 +332,34 @@ export default function Chat() {
       </main>
 
       <footer className="room-footer">
-        <button className="round-btn" disabled aria-label="bijlage">
+        <button className="icon-btn plus" disabled aria-label="bijlage">
           +
         </button>
         <div className="input-wrap">
-          <input className="chat-input" placeholder="zeg iets..." disabled />
-          <button className="send-btn" disabled aria-label="verstuur">
-            ➤
+          <input className="chat-input" placeholder="" disabled />
+          <button className="icon-btn inline" disabled aria-label="sticker">
+            🗒
           </button>
         </div>
+        <button className="icon-btn" disabled aria-label="camera">
+          📷
+        </button>
+        <button className="icon-btn" disabled aria-label="microfoon">
+          🎙
+        </button>
+      </footer>
+
+      {chat && (
         <button
-          className={`snowflake-btn ${glowing ? "glowing" : ""}`}
+          className={`snowflake-floating ${glowing ? "glowing" : ""}`}
           onClick={handleFlag}
-          disabled={!chat || isFrozen || gameOver || !!mediation}
+          disabled={isFrozen || gameOver || !!mediation}
           title="Bevries de vibe"
         >
           <span aria-hidden>❄</span>
           {flagCount > 0 && <span className="flag-count">{flagCount}</span>}
         </button>
-      </footer>
+      )}
 
       {mediation && !isFrozen && !gameOver && (
         <div className="med-popup">
@@ -389,7 +402,7 @@ export default function Chat() {
         <div className="freeze-overlay gameover">
           <div className="freeze-card">
             <div className="freeze-icons">💔</div>
-            <h2 className="freeze-title">harten op</h2>
+            <h2 className="freeze-title">game over</h2>
             <p className="freeze-summary">
               De groep heeft drie keer moeten chillen. Het rapport voor de
               leerkracht is opgeslagen.

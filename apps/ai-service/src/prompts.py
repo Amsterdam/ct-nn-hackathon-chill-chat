@@ -15,13 +15,15 @@ MEDIATION_USER_TEMPLATE = """Recent in de chat:
 
 In de chat is {flag_count}x op de "ongezellig" knop gedrukt.
 
-Schrijf een hele korte boodschap (max 2 zinnen) die de groep zachtjes erop wijst dat de sfeer aan het kantelen is, plus één concreet idee om het luchtiger te maken (bijv. een vraag stellen, iets delen, een kort spelletje).
+Schrijf een hele korte boodschap die de groep zachtjes erop wijst dat de sfeer aan het kantelen is, plus één concreet idee om het luchtiger te maken (bijv. een vraag stellen, iets delen, een kort spelletje).
 
-Geef terug als JSON, geen extra tekst eromheen:
+ABSOLUTE REGEL: gebruik GEEN enkele naam in de tekst — niet van wie geplaagd wordt, niet van wie plaagt, niet van wie de knop indrukte. Gebruik altijd "iemand", "de groep", "we", "iedereen", "elkaar". Als je een naam noemt is het verkeerd.
+
+ALLE drie velden zijn VERPLICHT. Combineer ze niet — body bevat alleen de boodschap, suggestion bevat alleen de suggestie. Geef terug als JSON, geen extra tekst eromheen:
 {{
   "title": "korte titel, max 4 woorden",
-  "body": "de boodschap, max 2 zinnen",
-  "suggestion": "een concrete suggestie, max 1 zin"
+  "body": "de boodschap zelf, 1-2 zinnen, GEEN suggestie hier",
+  "suggestion": "alleen de concrete suggestie, max 1 zin, beginnend met een werkwoord"
 }}"""
 
 FREEZE_SYSTEM = (

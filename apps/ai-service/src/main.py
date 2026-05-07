@@ -44,9 +44,9 @@ class MediationRequest(BaseModel):
 
 
 class MediationResponse(BaseModel):
-    title: str
-    body: str
-    suggestion: str
+    title: str = ""
+    body: str = ""
+    suggestion: str = ""
 
 
 class FreezeRequest(BaseModel):
@@ -54,8 +54,8 @@ class FreezeRequest(BaseModel):
 
 
 class FreezeResponse(BaseModel):
-    summary: str
-    redirect_prompt: str
+    summary: str = ""
+    redirect_prompt: str = ""
 
 
 class GeneratedMessage(BaseModel):
@@ -87,10 +87,10 @@ class ReportRequest(BaseModel):
 
 
 class ReportResponse(BaseModel):
-    summary: str
-    key_messages: list[ChatMessage]
-    freeze_summary: str
-    talking_points: list[str]
+    summary: str = ""
+    key_messages: list[ChatMessage] = []
+    freeze_summary: str = ""
+    talking_points: list[str] = []
 
 
 def _format_messages(messages: list[ChatMessage]) -> str:
