@@ -13,7 +13,7 @@ import {
 } from "../api";
 
 const FREEZE_THRESHOLD = 3;
-const FREEZE_DURATION_S = 20;
+const FREEZE_DURATION_S = 120;
 const STARTING_LIVES = 3;
 
 const PERSONA_COLORS = ["#A079FF", "#DBF4A7", "#E7ADCA", "#FDD08E", "#C2E2FF", "#59E796"];
